@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 import aiohttp
 import logging
 import json
+from motor.motor_asyncio import AsyncIOMotorClient
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s: %(message)s')
@@ -13,6 +14,24 @@ session = None
 article_id = []
 #定义信号量，最大的并发抓取数
 semaphore = asyncio.Semaphore(CONCURRENCY)
+
+#mongodb相关配置
+MONGO_CONNECTION_STRING = 'mongodb://localhost:27017'
+MONGO_DB_NAME = 'books'
+MONGO_COLLECTION_NAME = 'books'
+client = AsyncIOMotorClient(MONGO_CONNECTION_STRING)
+db = client[MONGO_DB_NAME]
+collection = db[MONGO_COLLECTION_NAME]
+
+#async_mongodb
+#TODO
+async def save_data(data):
+    logging.info("saving data %s", data)
+    await collection.update_one(
+        {'id': data.get('id')},
+        {'$set': data},
+        upsert=True,
+    )
 
 async def scrape_index(page):
     params = {
@@ -39,6 +58,9 @@ async def scrape_detail(id):
             logging.info('scraping %s', url)
             async with session.get(url) as response:
                 result = await response.json()
+                print(type(result))
+                print(result)
+                await save_data(result)
         except aiohttp.ClientError:
             logging.error('error occurred while scraping %s', url, exc_info=True)
 
